@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  fastapi:
+    build: .
+    container_name: CTFd_backend
+    user: root
+    ports:
+      - "8001:8001"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - db
+    env_file:
+      - app/.env  # Load environment variables from .env
+    restart: unless-stopped
+
+  db:
+    image: postgres:17
+    container_name: postgres_db
+    env_file:
+      - app/.env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
