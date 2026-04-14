@@ -1,0 +1,1 @@
+from src.bookings.models import Booking

@@ -1,6 +1,6 @@
 .venv
 .idea
-app/.env
+src/.env
 
 __pycache__/
 

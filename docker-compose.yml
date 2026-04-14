@@ -12,14 +12,14 @@ services:
     depends_on:
       - db
     env_file:
-      - app/.env  # Load environment variables from .env
+      - src/.env  # Load environment variables from .env
     restart: unless-stopped
 
   db:
     image: postgres:17
     container_name: postgres_db
     env_file:
-      - app/.env
+      - src/.env
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
