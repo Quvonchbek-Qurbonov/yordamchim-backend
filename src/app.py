@@ -7,6 +7,7 @@ from src.services import Service
 from src.providers import Provider
 from src.bookings import Booking
 from src.availability import Availability
+from src.chat import ChatLog
 
 from src.users import users_router
 from src.services import services_router

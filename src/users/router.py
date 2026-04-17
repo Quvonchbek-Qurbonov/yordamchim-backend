@@ -1,9 +1,9 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
-from starlette import status
 
+from src.bookings import Booking
 from src.core.db import get_db
 from src.users.schemas import UserRead, UserCreate, UserUpdate
 from src.users import User
@@ -66,7 +66,17 @@ def update_user(user_id: int, payload: UserUpdate, db_session: Session = Depends
 def delete_user(user_id: int, db_session: Session = Depends(get_db)):
     user = db_session.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    has_bookings = db_session.query(Booking.id).filter(Booking.user_id == user_id).first()
+    if has_bookings:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot delete user because user has related bookings"
+        )
 
     db_session.delete(user)
     db_session.commit()

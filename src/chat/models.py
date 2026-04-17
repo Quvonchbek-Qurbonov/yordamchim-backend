@@ -1,6 +1,6 @@
 from sqlalchemy import Text, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
-from datetime import datetime
+from datetime import datetime, timezone
 from src.core import Base
 
 class ChatLog(Base):
@@ -12,4 +12,4 @@ class ChatLog(Base):
     message: Mapped[str] = mapped_column(Text, nullable=False)
     response: Mapped[str] = mapped_column(Text, nullable=False)
 
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.now(timezone.utc))
