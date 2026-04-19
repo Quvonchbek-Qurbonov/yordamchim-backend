@@ -1,12 +1,14 @@
 from typing import Annotated
 
-from pydantic import BaseModel, StringConstraints
+from pydantic import BaseModel, StringConstraints, ConfigDict
 
 
 class ServiceRead(BaseModel):
     id: int
     name: str
     description: str
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ServiceCreate(BaseModel):

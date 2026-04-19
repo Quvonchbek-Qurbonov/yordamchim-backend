@@ -7,13 +7,13 @@ from src.core.db import get_db
 from src.providers import Provider
 from src.services import Service
 from src.services.schemas import ServiceCreate, ServiceUpdate, ServiceRead
-
+from src.services.service import get_all_services
 
 router = APIRouter(prefix="/services", tags=["Services"])
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=ServiceRead)
-async def create_service(payload: ServiceCreate, db_session: Session = Depends(get_db)):
+def create_service(payload: ServiceCreate, db_session: Session = Depends(get_db)):
     exits = db_session.query(Service).filter(Service.name == payload.name).first()
     if exits:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Service already exists")
@@ -28,13 +28,12 @@ async def create_service(payload: ServiceCreate, db_session: Session = Depends(g
 
 @router.get("/", status_code=status.HTTP_200_OK, response_model=List[ServiceRead])
 async def list_services(db_session: Session = Depends(get_db)):
-    services = db_session.query(Service).all()
-    return services
+    return get_all_services(db_session)
 
 
 
 @router.get("/{service_id}", status_code=status.HTTP_200_OK, response_model=ServiceRead)
-async def get_service(service_id: int, db_session: Session = Depends(get_db)):
+def get_service(service_id: int, db_session: Session = Depends(get_db)):
     service = db_session.query(Service).filter(Service.id == service_id).first()
     if not service:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service not found")
@@ -42,7 +41,7 @@ async def get_service(service_id: int, db_session: Session = Depends(get_db)):
 
 
 @router.patch("/{service_id}", status_code=status.HTTP_200_OK, response_model=ServiceRead)
-async def update_service(service_id: int, payload: ServiceUpdate, db_session: Session = Depends(get_db)):
+def update_service(service_id: int, payload: ServiceUpdate, db_session: Session = Depends(get_db)):
     service = db_session.query(Service).filter(Service.id == service_id).first()
     if not service:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service not found")
@@ -67,7 +66,7 @@ async def update_service(service_id: int, payload: ServiceUpdate, db_session: Se
 
 
 @router.delete("/{service_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_service(service_id: int, db_session: Session = Depends(get_db)):
+def delete_service(service_id: int, db_session: Session = Depends(get_db)):
     service = db_session.query(Service).filter(Service.id == service_id).first()
     if not service:
         raise HTTPException(
