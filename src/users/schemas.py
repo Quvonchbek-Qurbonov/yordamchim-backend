@@ -2,6 +2,9 @@ from datetime import datetime
 from typing import Annotated, Optional
 from pydantic import BaseModel, EmailStr, StringConstraints
 
+from src.users.models import Roles
+
+
 class UserCreate(BaseModel):
     email: EmailStr
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=50)]
@@ -12,6 +15,7 @@ class UserCreate(BaseModel):
         pattern=r"^\+?[0-9\s\-\(\)]{7,20}$"
     )]
     password: Annotated[str, StringConstraints(min_length=8, max_length=64)]
+    role: Roles
 
 
 class UserUpdate(BaseModel):
@@ -19,9 +23,12 @@ class UserUpdate(BaseModel):
 
 
 class UserRead(BaseModel):
+    id: int
     email: EmailStr
     name: str
     phone: str
-    id: int
+    role: Roles
+    is_active: bool
+    is_verified: bool
     created_at: datetime
     updated_at: datetime

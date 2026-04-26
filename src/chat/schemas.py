@@ -24,4 +24,5 @@ class ExtractRequest(BaseModel):
 class ServiceGemini(BaseModel):
     confident: bool
     clarification_question: str = Field(min_length=0, max_length=1000)
+    response: str = Field(min_length=0, max_length=1000)
     service_id: int

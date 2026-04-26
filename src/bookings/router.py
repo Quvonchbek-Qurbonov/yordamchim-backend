@@ -4,35 +4,71 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
 from sqlalchemy.orm import Session, joinedload
 
 from src.core.db import get_db
+from src.auth.dependencies import get_current_user
+from src.users.models import User, Roles
 from src.bookings.models import Booking, BookingStatus
 from src.bookings.schemas import BookingRead, BookingUpdate, BookingCreate
-from src.users import User
-from src.providers import Provider
-from src.services import Service
-from src.availability import Availability
+from src.services.models import Service
+from src.availability.models import Availability
+from src.providers import ProviderService
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 
 
+def _can_access_booking(current_user: User, booking: Booking) -> bool:
+    if current_user.role == Roles.admin:
+        return True
+    if booking.user_id == current_user.id:
+        return True
+    if booking.provider_id == current_user.id:
+        return True
+    return False
+
+
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=BookingRead)
-async def create_booking(payload: BookingCreate, db_session: Session = Depends(get_db)):
-    user = db_session.query(User).filter(User.id == payload.user_id).first()
+def create_booking(
+    payload: BookingCreate,
+    db_session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != Roles.admin and payload.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot create booking for another user")
+
+    user = db_session.query(User).filter(User.id == payload.user_id, User.is_active.is_(True)).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User does not exist")
 
-    provider = db_session.query(Provider).filter(Provider.id == payload.provider_id).first()
-    if not provider:
+    provider_user = (
+        db_session.query(User)
+        .filter(User.id == payload.provider_id, User.role == Roles.provider, User.is_active.is_(True))
+        .first()
+    )
+    if not provider_user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider does not exist")
 
     service = db_session.query(Service).filter(Service.id == payload.service_id).first()
     if not service:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service does not exist")
 
+    provider_has_service = (
+        db_session.query(ProviderService.id)
+        .filter(
+            ProviderService.user_id == payload.provider_id,
+            ProviderService.service_id == payload.service_id,
+        )
+        .first()
+    )
+    if not provider_has_service:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Selected provider does not provide this service",
+        )
+
     availability = (
         db_session.query(Availability)
         .filter(
             Availability.id == payload.availability_id,
-            Availability.provider_id == payload.provider_id,
+            Availability.user_id == payload.provider_id,
         )
         .first()
     )
@@ -44,12 +80,6 @@ async def create_booking(payload: BookingCreate, db_session: Session = Depends(g
 
     if payload.end_at <= payload.start_at:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid booking time range")
-
-    if provider.service_id != payload.service_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Selected provider does not provide this service",
-        )
 
     booking = Booking(
         user_id=payload.user_id,
@@ -74,7 +104,7 @@ async def create_booking(payload: BookingCreate, db_session: Session = Depends(g
         db_session.query(Booking)
         .options(
             joinedload(Booking.user),
-            joinedload(Booking.provider).joinedload(Provider.service),
+            joinedload(Booking.provider),   # provider is User now
             joinedload(Booking.service),
             joinedload(Booking.availability),
         )
@@ -85,19 +115,27 @@ async def create_booking(payload: BookingCreate, db_session: Session = Depends(g
 
 
 @router.get("/", status_code=status.HTTP_200_OK, response_model=List[BookingRead])
-async def list_bookings(
+def list_bookings(
     user_id: int | None = None,
     provider_id: int | None = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
     db_session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     q = db_session.query(Booking).options(
         joinedload(Booking.user),
-        joinedload(Booking.provider).joinedload(Provider.service),
+        joinedload(Booking.provider),
         joinedload(Booking.service),
         joinedload(Booking.availability),
     )
+
+    # non-admin can only see their own side of bookings
+    if current_user.role != Roles.admin:
+        if current_user.role == Roles.provider:
+            q = q.filter(Booking.provider_id == current_user.id)
+        else:
+            q = q.filter(Booking.user_id == current_user.id)
 
     if user_id is not None:
         q = q.filter(Booking.user_id == user_id)
@@ -110,12 +148,16 @@ async def list_bookings(
 
 
 @router.get("/{booking_id}", status_code=status.HTTP_200_OK, response_model=BookingRead)
-async def get_booking(booking_id: int, db_session: Session = Depends(get_db)):
+def get_booking(
+    booking_id: int,
+    db_session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     booking = (
         db_session.query(Booking)
         .options(
             joinedload(Booking.user),
-            joinedload(Booking.provider).joinedload(Provider.service),
+            joinedload(Booking.provider),
             joinedload(Booking.service),
             joinedload(Booking.availability),
         )
@@ -124,18 +166,26 @@ async def get_booking(booking_id: int, db_session: Session = Depends(get_db)):
     )
     if not booking:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking does not exist")
+
+    if not _can_access_booking(current_user, booking):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
     return booking
 
 
 @router.patch("/{booking_id}", status_code=status.HTTP_200_OK, response_model=BookingRead)
-async def update_booking_status(
+def update_booking_status(
     booking_id: int,
     payload: BookingUpdate,
     db_session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     booking = db_session.query(Booking).filter(Booking.id == booking_id).first()
     if not booking:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking does not exist")
+
+    if not _can_access_booking(current_user, booking):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
     update_data = payload.model_dump(exclude_unset=True)
     if not update_data:
@@ -143,7 +193,7 @@ async def update_booking_status(
             db_session.query(Booking)
             .options(
                 joinedload(Booking.user),
-                joinedload(Booking.provider).joinedload(Provider.service),
+                joinedload(Booking.provider),
                 joinedload(Booking.service),
                 joinedload(Booking.availability),
             )
@@ -171,7 +221,7 @@ async def update_booking_status(
         db_session.query(Booking)
         .options(
             joinedload(Booking.user),
-            joinedload(Booking.provider).joinedload(Provider.service),
+            joinedload(Booking.provider),
             joinedload(Booking.service),
             joinedload(Booking.availability),
         )
@@ -182,10 +232,17 @@ async def update_booking_status(
 
 
 @router.delete("/{booking_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def cancel_booking(booking_id: int, db_session: Session = Depends(get_db)):
+def cancel_booking(
+    booking_id: int,
+    db_session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     booking = db_session.query(Booking).filter(Booking.id == booking_id).first()
     if not booking:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking does not exist")
+
+    if not _can_access_booking(current_user, booking):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
     # free slot before delete
     if booking.availability_id:

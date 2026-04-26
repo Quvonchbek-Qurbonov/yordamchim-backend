@@ -4,7 +4,7 @@ from src.core import engine, Base
 
 from src.users import User
 from src.services import Service
-from src.providers import Provider
+from src.providers import Profile, ProviderService
 from src.bookings import Booking
 from src.availability import Availability
 from src.chat import ChatLog
@@ -15,6 +15,8 @@ from src.providers import providers_router
 from src.bookings import bookings_router
 from src.availability import availability_router
 from src.chat import chat_router
+from src.auth import auth_router
+from src.assets import assets_router
 
 
 @asynccontextmanager
@@ -37,4 +39,6 @@ app.include_router(providers_router, prefix="/api/v1")
 app.include_router(bookings_router, prefix="/api/v1")
 app.include_router(availability_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
+app.include_router(auth_router, prefix="/api/v1")
+app.include_router(assets_router, prefix="/api/v1")
 

@@ -9,17 +9,17 @@ from datetime import datetime
 from src.services.schemas import ServiceRead
 from src.services.service import get_all_services
 
+
 current_datetime = datetime.now().isoformat()
-
-
 
 client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
 
 def choose_service(text: str, db_session: Session):
     service_selection_prompt = """
-        You should choose a service from listed services (as json) according to user text.
+        You should choose a service from listed services (as json) according to user text and recommend that service to user.
         If you are strongly unsure to select, add question to clarification_question field. Otherwise set it empty.
+        "response" field is for recommendation. If you have clarification_question and not confident, set "response" empty.
         Return only requested fields.
     """
 
@@ -34,4 +34,5 @@ def choose_service(text: str, db_session: Session):
             "response_schema": ServiceGemini,
         },
     )
-    return ServiceGemini.model_validate_json(resp.text)
+
+    return resp.parsed

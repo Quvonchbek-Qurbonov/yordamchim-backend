@@ -4,32 +4,66 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Query
 from sqlalchemy.orm import Session
 
-from src.availability import Availability
-from src.availability.schemas import AvailabilityRead, AvailabilityCreate, AvailabilityUpdate
-from src.bookings import Booking
 from src.core.db import get_db
-from src.providers import Provider
+from src.auth.dependencies import get_current_user
+from src.users.models import User, Roles
+from src.availability.models import Availability
+from src.availability.schemas import AvailabilityRead, AvailabilityCreate, AvailabilityUpdate
+from src.bookings.models import Booking
 
 router = APIRouter(prefix="/availability", tags=["Availability"])
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED, response_model=AvailabilityRead)
-async def create_slot(payload: AvailabilityCreate, db_session: Session = Depends(get_db)):
-    is_valid_slot = payload.end_time > payload.start_time
-    if not is_valid_slot:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Time range is not valid for a slot")
+def _ensure_provider_or_admin(current_user: User) -> None:
+    if current_user.role not in {Roles.provider, Roles.admin}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only providers or admins can manage availability",
+        )
 
-    provider = db_session.query(Provider).filter(Provider.id == payload.provider_id).first()
-    if not provider:
+
+def _can_manage_provider_slots(current_user: User, provider_user_id: int) -> None:
+    # admin can manage any provider; provider can manage only own slots
+    if current_user.role == Roles.admin:
+        return
+    if current_user.role == Roles.provider and current_user.id == provider_user_id:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="You cannot manage another provider's availability",
+    )
+
+
+@router.post("/", status_code=status.HTTP_201_CREATED, response_model=AvailabilityRead)
+def create_slot(
+    payload: AvailabilityCreate,
+    db_session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _ensure_provider_or_admin(current_user)
+    _can_manage_provider_slots(current_user, payload.user_id)
+
+    if payload.end_time <= payload.start_time:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Time range is not valid for a slot",
+        )
+
+    provider_user = (
+        db_session.query(User)
+        .filter(User.id == payload.user_id, User.role == Roles.provider, User.is_active.is_(True))
+        .first()
+    )
+    if not provider_user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Provider not found",
+            detail="Provider user not found",
         )
 
     overlapping = (
         db_session.query(Availability)
         .filter(
-            Availability.provider_id == payload.provider_id,
+            Availability.user_id == payload.user_id,
             Availability.date == payload.date,
             payload.start_time < Availability.end_time,
             payload.end_time > Availability.start_time,
@@ -43,7 +77,7 @@ async def create_slot(payload: AvailabilityCreate, db_session: Session = Depends
         )
 
     slot = Availability(
-        provider_id=payload.provider_id,
+        user_id=payload.user_id,
         date=payload.date,
         start_time=payload.start_time,
         end_time=payload.end_time,
@@ -55,17 +89,18 @@ async def create_slot(payload: AvailabilityCreate, db_session: Session = Depends
     db_session.refresh(slot)
     return slot
 
+
 @router.get("/", response_model=List[AvailabilityRead], status_code=status.HTTP_200_OK)
 def get_slots(
-    provider_id: int = Query(..., ge=1),
-    date: Optional[date] = Query(None),
+    provider_user_id: int = Query(..., ge=1),
+    date_filter: Optional[date] = Query(None, alias="date"),
     only_free: bool = Query(False),
     db_session: Session = Depends(get_db),
 ):
-    q = db_session.query(Availability).filter(Availability.provider_id == provider_id)
+    q = db_session.query(Availability).filter(Availability.user_id == provider_user_id)
 
-    if date is not None:
-        q = q.filter(Availability.date == date)
+    if date_filter is not None:
+        q = q.filter(Availability.date == date_filter)
 
     if only_free:
         q = q.filter(Availability.is_booked.is_(False))
@@ -79,10 +114,15 @@ def update_slot(
     slot_id: int,
     payload: AvailabilityUpdate,
     db_session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
+    _ensure_provider_or_admin(current_user)
+
     slot = db_session.query(Availability).filter(Availability.id == slot_id).first()
     if not slot:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slot not found")
+
+    _can_manage_provider_slots(current_user, slot.user_id)
 
     # prevent time edits if already booked
     if slot.is_booked and (
@@ -98,7 +138,7 @@ def update_slot(
     new_date = update_data.get("date", slot.date)
     new_start = update_data.get("start_time", slot.start_time)
     new_end = update_data.get("end_time", slot.end_time)
-    new_provider_id = update_data.get("provider_id", slot.provider_id)
+    new_user_id = update_data.get("user_id", slot.user_id)
 
     if new_end <= new_start:
         raise HTTPException(
@@ -106,11 +146,25 @@ def update_slot(
             detail="Time range is not valid for a slot",
         )
 
+    # if reassigning slot owner, enforce authorization + provider validity
+    if new_user_id != slot.user_id:
+        _can_manage_provider_slots(current_user, new_user_id)
+        provider_user = (
+            db_session.query(User)
+            .filter(User.id == new_user_id, User.role == Roles.provider, User.is_active.is_(True))
+            .first()
+        )
+        if not provider_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Target provider user not found",
+            )
+
     overlap = (
         db_session.query(Availability)
         .filter(
             Availability.id != slot_id,
-            Availability.provider_id == new_provider_id,
+            Availability.user_id == new_user_id,
             Availability.date == new_date,
             new_start < Availability.end_time,
             new_end > Availability.start_time,
@@ -132,13 +186,18 @@ def update_slot(
 
 
 @router.delete("/{slot_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_slot(slot_id: int, db_session: Session = Depends(get_db)):
+def delete_slot(
+    slot_id: int,
+    db_session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _ensure_provider_or_admin(current_user)
+
     slot = db_session.query(Availability).filter(Availability.id == slot_id).first()
     if not slot:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Slot not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slot not found")
+
+    _can_manage_provider_slots(current_user, slot.user_id)
 
     if slot.is_booked:
         raise HTTPException(
@@ -154,7 +213,7 @@ def delete_slot(slot_id: int, db_session: Session = Depends(get_db)):
     if has_booking_reference:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Cannot delete slot because it is linked to booking(s)"
+            detail="Cannot delete slot because it is linked to booking(s)",
         )
 
     db_session.delete(slot)

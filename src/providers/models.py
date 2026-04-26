@@ -1,25 +1,41 @@
-from datetime import datetime, timezone
+from __future__ import annotations
+from typing import TYPE_CHECKING
 
-from sqlalchemy import String, Integer, Float, Boolean, ForeignKey, Column, DateTime
+from sqlalchemy import String, Integer, Float, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.core.db import Base
 
-class Provider(Base):
-    __tablename__ = "providers"
+
+if TYPE_CHECKING:
+    from src.users import User
+    from src.services import Service
+
+
+class Profile(Base):
+    __tablename__ = "profiles"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_profiles_user_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String)
-    phone: Mapped[str] = mapped_column(String)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    bio: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    about: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    experience_years: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rating_avg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rating_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    is_available: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
-    service_id: Mapped[int] = mapped_column(ForeignKey("services.id"))
+    user: Mapped["User"] = relationship("User", back_populates="profile")
 
-    rating: Mapped[float] = mapped_column(default=0.0)
-    is_active: Mapped[bool] = mapped_column(default=True)
 
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
-                        onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+class ProviderService(Base):
+    __tablename__ = "provider_services"
+    __table_args__ = (
+        UniqueConstraint("user_id", "service_id", name="uq_provider_service"),
+    )
 
-    service = relationship("Service", back_populates="providers")
-    availability = relationship("Availability", back_populates="provider")
-    bookings = relationship("Booking", back_populates="provider")
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    service_id: Mapped[int] = mapped_column(ForeignKey("services.id", ondelete="CASCADE"), nullable=False)
+
+    user: Mapped["User"] = relationship("User", back_populates="provider_services")
+    service: Mapped["Service"] = relationship("Service", back_populates="provider_links")

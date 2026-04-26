@@ -1,0 +1,1 @@
+from src.assets.router import router as assets_router
