@@ -92,3 +92,16 @@ class JwtAuth:
                 detail="Token subject missing",
             )
         return str(sub)
+
+    @staticmethod
+    def get_role_from_token(token: str, expected_type: str = TokenType.ACCESS) -> str:
+        payload = JwtAuth.decode_token(token)
+        JwtAuth.verify_token_type(payload, expected_type)
+
+        role = payload.get("role")
+        if not role:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token role missing",
+            )
+        return str(role)

@@ -5,8 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.core.db import get_db
-from src.auth.dependencies import get_current_user
-from src.users.models import User, Roles
+from src.auth.dependencies import only_admin
 from src.bookings.models import Booking
 from src.services.models import Service
 from src.providers import ProviderService
@@ -16,21 +15,12 @@ from src.services.service import get_all_services
 router = APIRouter(prefix="/services", tags=["Services"])
 
 
-def _require_admin(current_user: User) -> None:
-    if current_user.role != Roles.admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can manage services",
-        )
-
-
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=ServiceRead)
 def create_service(
     payload: ServiceCreate,
     db_session: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    _ = Depends(only_admin)
 ):
-    _require_admin(current_user)
 
     normalized_name = payload.name.strip()
     if not normalized_name:
@@ -70,9 +60,8 @@ def update_service(
     service_id: int,
     payload: ServiceUpdate,
     db_session: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    _ = Depends(only_admin)
 ):
-    _require_admin(current_user)
 
     service = db_session.query(Service).filter(Service.id == service_id).first()
     if not service:
@@ -109,9 +98,8 @@ def update_service(
 def delete_service(
     service_id: int,
     db_session: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    _ = Depends(only_admin)
 ):
-    _require_admin(current_user)
 
     service = db_session.query(Service).filter(Service.id == service_id).first()
     if not service:

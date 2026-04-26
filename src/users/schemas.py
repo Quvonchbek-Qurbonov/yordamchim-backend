@@ -15,7 +15,6 @@ class UserCreate(BaseModel):
         pattern=r"^\+?[0-9\s\-\(\)]{7,20}$"
     )]
     password: Annotated[str, StringConstraints(min_length=8, max_length=64)]
-    role: Roles
 
 
 class UserUpdate(BaseModel):
