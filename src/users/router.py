@@ -3,7 +3,6 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.params import Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
 
 from src.auth.dependencies import get_current_user, only_admin
 from src.bookings import Booking
@@ -13,21 +12,15 @@ from src.users.schemas import UserRead, UserCreate, UserUpdate
 from src.users import User
 from src.core.security import hash_password
 
+from src.users.service import existence_email_phone
+
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
 @router.post("/user", status_code=status.HTTP_201_CREATED, response_model=UserRead)
 def create_user(payload: UserCreate, db_session: Session = Depends(get_db)):
-    existing_user = db_session.query(User).filter(
-        or_(User.email == payload.email, User.phone == payload.phone)
-    ).first()
-
-    if existing_user:
-        if existing_user.email == payload.email:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
-        if existing_user.phone == payload.phone:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Phone already exists")
+    existence_email_phone(db_session, payload.email, payload.phone)
 
     user = User(
         email=payload.email,
@@ -44,15 +37,7 @@ def create_user(payload: UserCreate, db_session: Session = Depends(get_db)):
 
 @router.post("/admin", status_code=status.HTTP_201_CREATED, response_model=UserRead)
 def create_admin(payload: UserCreate, db_session: Session = Depends(get_db), _ = Depends(only_admin)):
-    existing_user = db_session.query(User).filter(
-        or_(User.email == payload.email, User.phone == payload.phone)
-    ).first()
-
-    if existing_user:
-        if existing_user.email == payload.email:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
-        if existing_user.phone == payload.phone:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Phone already exists")
+    existence_email_phone(db_session, payload.email, payload.phone)
 
     user = User(
         email=payload.email,
@@ -69,15 +54,7 @@ def create_admin(payload: UserCreate, db_session: Session = Depends(get_db), _ =
 
 @router.post("/provider", status_code=status.HTTP_201_CREATED, response_model=UserRead)
 def create_provider(payload: UserCreate, db_session: Session = Depends(get_db), _ = Depends(only_admin)):
-    existing_user = db_session.query(User).filter(
-        or_(User.email == payload.email, User.phone == payload.phone)
-    ).first()
-
-    if existing_user:
-        if existing_user.email == payload.email:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
-        if existing_user.phone == payload.phone:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Phone already exists")
+    existence_email_phone(db_session, payload.email, payload.phone)
 
     user = User(
         email=payload.email,
@@ -154,7 +131,7 @@ def delete_user(user_id: int, db_session: Session = Depends(get_db), current_use
                 detail="Cannot delete user because user has related bookings"
             )
 
-        user.is_active = False
+        db_session.delete(user)
         db_session.commit()
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 

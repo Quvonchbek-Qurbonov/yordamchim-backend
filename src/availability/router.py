@@ -23,7 +23,6 @@ def _ensure_provider_or_admin(current_user: User) -> None:
 
 
 def _can_manage_provider_slots(current_user: User, provider_user_id: int) -> None:
-    # admin can manage any provider; provider can manage only own slots
     if current_user.role == Roles.admin:
         return
     if current_user.role == Roles.provider and current_user.id == provider_user_id:
@@ -41,7 +40,7 @@ def create_slot(
     current_user: User = Depends(get_current_user),
 ):
     _ensure_provider_or_admin(current_user)
-    _can_manage_provider_slots(current_user, payload.user_id)
+    _can_manage_provider_slots(current_user, payload.provider_id)
 
     if payload.end_time <= payload.start_time:
         raise HTTPException(
@@ -51,19 +50,19 @@ def create_slot(
 
     provider_user = (
         db_session.query(User)
-        .filter(User.id == payload.user_id, User.role == Roles.provider, User.is_active.is_(True))
+        .filter(User.id == payload.provider_id, User.role == Roles.provider, User.is_active.is_(True))
         .first()
     )
     if not provider_user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Provider user not found",
+            detail="Provider not found",
         )
 
     overlapping = (
         db_session.query(Availability)
         .filter(
-            Availability.user_id == payload.user_id,
+            Availability.user_id == payload.provider_id,
             Availability.date == payload.date,
             payload.start_time < Availability.end_time,
             payload.end_time > Availability.start_time,
@@ -77,7 +76,7 @@ def create_slot(
         )
 
     slot = Availability(
-        user_id=payload.user_id,
+        user_id=payload.provider_id,
         date=payload.date,
         start_time=payload.start_time,
         end_time=payload.end_time,

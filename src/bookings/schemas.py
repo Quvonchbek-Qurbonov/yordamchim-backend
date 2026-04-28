@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, StringConstraints, ConfigDict
 
 from src.bookings.models import BookingStatus
 from src.users.schemas import UserRead
-from src.providers.schemas import ProviderRead
+from src.providers.schemas import ProfileRead
 from src.services.schemas import ServiceRead
 from src.availability.schemas import AvailabilityRead
 
@@ -31,7 +31,7 @@ class BookingRead(BaseModel):
     id: int
 
     user: UserRead
-    provider: ProviderRead
+    provider: ProfileRead
     service: ServiceRead
     availability: AvailabilityRead
 
