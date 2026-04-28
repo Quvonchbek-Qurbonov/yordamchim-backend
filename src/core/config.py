@@ -15,6 +15,12 @@ class Settings(BaseSettings) :
     IMAGE_KIT_PUBLIC: str
     IMAGE_KIT_URL: str
 
+    REDIS_URL: str
+
+    BREVO_API_KEY: str
+    SENDER_EMAIL: str
+    SENDER_NAME: str
+
     class Config:
         env_file = "src/.env"
 

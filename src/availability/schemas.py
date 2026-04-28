@@ -9,10 +9,9 @@ from pydantic.v1 import ConstrainedInt
 class AvailabilityRead(BaseModel):
     id: int
 
-    provider_id: int
-    date: date
-    start_time: time
-    end_time: time
+    user_id: int
+    start_at: datetime
+    end_at: datetime
     is_booked: bool
 
     created_at: datetime
@@ -21,13 +20,11 @@ class AvailabilityRead(BaseModel):
 
 class AvailabilityCreate(BaseModel):
     provider_id: int
-    date: date
-    start_time: time
-    end_time: time
+    start_at: datetime
+    end_at: datetime
 
 
 class AvailabilityUpdate(BaseModel):
     is_booked: bool
-    date: date
-    start_time: time
-    end_time: time
+    start_at: datetime
+    end_at: datetime

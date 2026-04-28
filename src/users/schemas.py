@@ -1,7 +1,8 @@
 from datetime import datetime
 from typing import Annotated, Optional
-from pydantic import BaseModel, EmailStr, StringConstraints
+from pydantic import BaseModel, EmailStr, StringConstraints, ConfigDict
 
+from src.providers.schemas import ProfileRead
 from src.users.models import Roles
 
 
@@ -31,3 +32,10 @@ class UserRead(BaseModel):
     is_verified: bool
     created_at: datetime
     updated_at: datetime
+
+
+class ProviderUserRead(BaseModel):
+    user: UserRead
+    profile: Optional[ProfileRead] = None
+
+    model_config = ConfigDict(from_attributes=True)

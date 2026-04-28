@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field, StringConstraints, ConfigDict
 
 from src.bookings.models import BookingStatus
 from src.users.schemas import UserRead
-from src.providers.schemas import ProfileRead
 from src.services.schemas import ServiceRead
 from src.availability.schemas import AvailabilityRead
 
@@ -17,10 +16,6 @@ class BookingCreate(BaseModel):
     service_id: Annotated[int, Field(gt=0)]
     availability_id: Annotated[int, Field(gt=0)]
 
-    start_at: datetime
-    end_at: datetime
-
-    # usually set by backend; keep optional if you want to allow client value
     status: BookingStatus = BookingStatus.pending
 
     total_price: Annotated[Decimal, Field(ge=0, max_digits=10, decimal_places=2)]
@@ -31,7 +26,7 @@ class BookingRead(BaseModel):
     id: int
 
     user: UserRead
-    provider: ProfileRead
+    provider: UserRead
     service: ServiceRead
     availability: AvailabilityRead
 
@@ -48,6 +43,5 @@ class BookingRead(BaseModel):
 
 
 class BookingUpdate(BaseModel):
-    # If only these statuses are allowed by your flow, enforce in service logic too
     status: Optional[BookingStatus] = None
     notes: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]] = None

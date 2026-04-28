@@ -78,17 +78,14 @@ def create_booking(
     if availability.is_booked:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Slot is already booked")
 
-    if payload.end_at <= payload.start_at:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid booking time range")
-
     booking = Booking(
         user_id=payload.user_id,
         provider_id=payload.provider_id,
         service_id=payload.service_id,
         availability_id=payload.availability_id,
-        start_at=payload.start_at,
-        end_at=payload.end_at,
-        status=payload.status,
+        start_at=availability.start_at,
+        end_at=availability.end_at,
+        status=BookingStatus.pending,
         total_price=payload.total_price,
         notes=payload.notes,
     )
@@ -104,7 +101,7 @@ def create_booking(
         db_session.query(Booking)
         .options(
             joinedload(Booking.user),
-            joinedload(Booking.provider),   # provider is User now
+            joinedload(Booking.provider),
             joinedload(Booking.service),
             joinedload(Booking.availability),
         )

@@ -19,6 +19,8 @@ def get_current_user(
     user = db.query(User).filter(User.id == int(user_id)).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    # if not user.is_verified:
+    #     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Your account is not verified. Please verify your account")
     return user
 
 
@@ -30,3 +32,12 @@ def only_admin(
     if role != Roles.admin.value:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Admin privilege is required")
     return role
+
+
+def get_current_verified_user(current_user: User = Depends(get_current_user)) -> User:
+    if not current_user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is not verified",
+        )
+    return current_user

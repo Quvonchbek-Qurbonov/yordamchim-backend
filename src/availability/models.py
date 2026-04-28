@@ -1,12 +1,10 @@
 from __future__ import annotations
-
-from datetime import datetime, timezone, time, date
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Date, Time, Boolean, DateTime, CheckConstraint
+from sqlalchemy import ForeignKey, Boolean, DateTime, CheckConstraint, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.core.db import Base
-
 
 if TYPE_CHECKING:
     from src.users import User
@@ -16,15 +14,19 @@ if TYPE_CHECKING:
 class Availability(Base):
     __tablename__ = "availability"
     __table_args__ = (
-        CheckConstraint("end_time > start_time", name="ck_availability_time_range"),
+        CheckConstraint("end_at > start_at", name="ck_availability_time_range"),
+        Index("ix_availability_user_start_end", "user_id", "start_at", "end_at"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
 
-    date: Mapped[date] = mapped_column(Date, nullable=False)
-    start_time: Mapped[time] = mapped_column(Time, nullable=False)
-    end_time: Mapped[time] = mapped_column(Time, nullable=False)
+    start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     is_booked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 

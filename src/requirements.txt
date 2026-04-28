@@ -20,3 +20,7 @@ cryptography>=46.0.7
 
 imagekitio>=5.4.0
 python-multipart>=0.0.26
+redis>=7.4.0
+
+postmark-python>=0.2.4
+sib-api-v3-sdk>=7.6.0
