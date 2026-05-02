@@ -8,66 +8,11 @@ from src.auth.dependencies import get_current_user, only_admin
 from src.bookings import Booking
 from src.core.db import get_db
 from src.users.models import Roles
-from src.users.schemas import UserRead, UserCreate, UserUpdate
+from src.users.schemas import UserRead, UserUpdate
 from src.users import User
-from src.core.security import hash_password
-
-from src.users.service import existence_email_phone
 
 
 router = APIRouter(prefix="/users", tags=["Users"])
-
-
-@router.post("/user", status_code=status.HTTP_201_CREATED, response_model=UserRead)
-def create_user(payload: UserCreate, db_session: Session = Depends(get_db)):
-    existence_email_phone(db_session, payload.email, payload.phone)
-
-    user = User(
-        email=payload.email,
-        name=payload.name,
-        phone=payload.phone,
-        password=hash_password(payload.password),
-        role=Roles.user,  #Only users can be created
-    )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-    return user
-
-
-@router.post("/admin", status_code=status.HTTP_201_CREATED, response_model=UserRead)
-def create_admin(payload: UserCreate, db_session: Session = Depends(get_db), _ = Depends(only_admin)):
-    existence_email_phone(db_session, payload.email, payload.phone)
-
-    user = User(
-        email=payload.email,
-        name=payload.name,
-        phone=payload.phone,
-        password=hash_password(payload.password),
-        role=Roles.admin,
-    )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-    return user
-
-
-@router.post("/provider", status_code=status.HTTP_201_CREATED, response_model=UserRead)
-def create_provider(payload: UserCreate, db_session: Session = Depends(get_db), _ = Depends(only_admin)):
-    existence_email_phone(db_session, payload.email, payload.phone)
-
-    user = User(
-        email=payload.email,
-        name=payload.name,
-        phone=payload.phone,
-        password=hash_password(payload.password),
-        role=Roles.provider,
-    )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-    return user
-
 
 
 @router.get("/{user_id}", status_code=status.HTTP_200_OK, response_model=UserRead)

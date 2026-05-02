@@ -17,6 +17,11 @@ class Settings(BaseSettings) :
 
     REDIS_URL: str
 
+    OTP_TTL_SECONDS: int
+    OTP_COOLDOWN_SECONDS: int
+    OTP_MAX_ATTEMPTS: int
+    PENDING_REG_TTL_SECONDS: int
+
     BREVO_API_KEY: str
     SENDER_EMAIL: str
     SENDER_NAME: str

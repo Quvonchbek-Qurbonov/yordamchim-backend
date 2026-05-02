@@ -1,6 +1,10 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+
+from fastapi import FastAPI, HTTPException
+from redis import Redis
+
 from src.core import engine, Base
+from src.core.config import settings
 
 from src.users import User
 from src.services import Service
@@ -19,11 +23,23 @@ from src.auth import auth_router
 from src.assets import assets_router
 
 
+from contextlib import asynccontextmanager
+from redis.asyncio import Redis
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
-    yield
 
+    redis_client = Redis.from_url(settings.REDIS_URL, decode_responses=True)
+    try:
+        await redis_client.ping()
+    except Exception:
+        raise
+    app.state.redis = redis_client
+    try:
+        yield
+    finally:
+        await redis_client.close()
 
 app = FastAPI(
     title="Yordamchim Backend",

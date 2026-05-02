@@ -13,14 +13,13 @@ bcrypt==4.3.0 #do not change it's version
 pydantic>=2.13.3
 email-validator>=2.3.0
 
-google-genai>=1.73.1
+google-genai==1.73.1
 
 python-jose>=3.5.0
 cryptography>=46.0.7
 
-imagekitio>=5.4.0
+imagekitio==5.4.0
 python-multipart>=0.0.26
 redis>=7.4.0
 
-postmark-python>=0.2.4
 sib-api-v3-sdk>=7.6.0
